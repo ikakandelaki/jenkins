@@ -23,7 +23,7 @@ services:
     networks:
       - jenkins
     environment:
-      DOCKER_HOST: "tcp://docker:2376"
+      DOCKER_HOST: "tcp://jenkins-docker:2376"
       DOCKER_CERT_PATH: "/certs/client"
       DOCKER_TLS_VERIFY: "1"
     volumes:
@@ -35,9 +35,37 @@ services:
     depends_on:
       - jenkins-docker
 
+  nexus:
+    image: sonatype/nexus3
+    container_name: nexus
+    restart: always
+    networks:
+      - jenkins
+    ports:
+      - "8081:8081"
+    volumes:
+      - nexus-data:/nexus-data
+
+  sonarqube:
+    image: sonarqube
+    container_name: sonarqube
+    restart: always
+    networks:
+      - jenkins
+    ports:
+      - "9000:9000"
+    volumes:
+      - sonarqube-data:/opt/sonarqube/data
+      - sonarqube_logs:/opt/sonarqube/logs
+      - sonarqube_extensions:/opt/sonarqube/extensions
+
 networks:
   jenkins:
 
 volumes:
   jenkins-docker-certs:
   jenkins-data:
+  nexus-data:
+  sonarqube-data:
+  sonarqube_logs:
+  sonarqube_extensions:
