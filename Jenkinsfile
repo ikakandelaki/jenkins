@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     tools {
-        maven 'mvn-3.9.9'
+        maven 'MAVEN3.9'
         jdk 'JDK17'
     }
 
@@ -11,6 +11,13 @@ pipeline {
             steps {
                 echo 'Fetching code..'
                 git branch: 'atom', url: 'https://github.com/hkhcoder/vprofile-project.git'
+            }
+        }
+
+        stage('Unit Test') {
+            steps {
+                    echo 'Testing..'
+                    sh 'mvn test'
             }
         }
 
@@ -24,13 +31,6 @@ pipeline {
                     echo 'Now Archiving the Artifacts..'
                     archiveArtifacts artifacts: '**/*.war'
                 }
-            }
-        }
-
-        stage('Unit Test') {
-            steps {
-                    echo 'Testing..'
-                    sh 'mvn test'
             }
         }
 
@@ -60,6 +60,12 @@ pipeline {
             }
         }
 
-        //todo: quality gate stage
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 1, unit: 'HOURS') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
     }
 }
