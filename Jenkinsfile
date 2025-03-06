@@ -1,3 +1,8 @@
+def COLOR_MAP = [
+    'SUCCESS': 'good',
+    'FAILURE': 'danger'
+]
+
 pipeline {
     agent any
 
@@ -66,6 +71,40 @@ pipeline {
                     waitForQualityGate abortPipeline: true
                 }
             }
+        }
+
+        stage('Upload to Nexus') {
+            environment {
+                NEXUS_VERSION = "nexus3"
+                NEXUS_PROTOCOL = "http"
+                NEXUS_URL = "172.31.18.160:8081"
+                NEXUS_REPO = "vprofile-repo"
+                NEXUS_CREDENTIAL_ID = "nexuslogin"
+            }
+            steps {
+                echo 'Uploading to Nexus..'
+                nexusArtifactUploader(
+                    nexusVersion: "${NEXUS_VERSION}",
+                    protocol: "${NEXUS_PROTOCOL}",
+                    nexusUrl: "${NEXUS_URL}",
+                    groupId: 'QA',
+                    version: "${env.BUILD_ID}-${env.BUILD_TIMESTAMP}",
+                    repository: "${NEXUS_REPO}",
+                    credentialsId: "${NEXUS_CREDENTIAL_ID}",
+                    artifacts: [
+                        [artifactId: 'vproapp', classifier: '', file: 'target/vprofile-v2.war', type: 'war']
+                    ]
+                )
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Slack Notifications.'
+            slackSend channel: '#ci-cd',
+                color: COLOR_MAP[currentBuild.currentResult],
+                message: "*${currentBuild.currentResult}:* Job ${env.JOB_NAME} build ${env.BUILD_NUMBER}"
         }
     }
 }
