@@ -1,8 +1,3 @@
-def COLOR_MAP = [
-    'SUCCESS': 'good',
-    'FAILURE': 'danger'
-]
-
 pipeline {
     agent any
 
@@ -11,11 +6,17 @@ pipeline {
         jdk 'JDK17'
     }
 
+    environment {
+        REGISTRY_CREDENTIAL = 'ecr:eu-north-1:awscreds'
+        IMAGE_NAME = '113580812368.dkr.ecr.eu-north-1.amazonaws.com/vprofileappimg'
+        VPROFILE_REGISTRY = 'https://113580812368.dkr.ecr.eu-north-1.amazonaws.com'
+    }
+
     stages {
         stage('Fetch code') {
             steps {
                 echo 'Fetching code..'
-                git branch: 'atom', url: 'https://github.com/hkhcoder/vprofile-project.git'
+                git branch: 'docker', url: 'https://github.com/hkhcoder/vprofile-project.git'
             }
         }
 
@@ -73,38 +74,29 @@ pipeline {
             }
         }
 
-        stage('Upload to Nexus') {
-            environment {
-                NEXUS_VERSION = "nexus3"
-                NEXUS_PROTOCOL = "http"
-                NEXUS_URL = "172.31.18.160:8081"
-                NEXUS_REPO = "vprofile-repo"
-                NEXUS_CREDENTIAL_ID = "nexuslogin"
-            }
+        stage('Build App Image') {
             steps {
-                echo 'Uploading to Nexus..'
-                nexusArtifactUploader(
-                    nexusVersion: "${NEXUS_VERSION}",
-                    protocol: "${NEXUS_PROTOCOL}",
-                    nexusUrl: "${NEXUS_URL}",
-                    groupId: 'QA',
-                    version: "${env.BUILD_ID}-${env.BUILD_TIMESTAMP}",
-                    repository: "${NEXUS_REPO}",
-                    credentialsId: "${NEXUS_CREDENTIAL_ID}",
-                    artifacts: [
-                        [artifactId: 'vproapp', classifier: '', file: 'target/vprofile-v2.war', type: 'war']
-                    ]
-                )
+                script {
+                    dockerImage = docker.build(IMAGE_NAME + ":${BUILD_NUMBER}", './Docker-files/app/multistage/')
+                }
             }
         }
-    }
 
-    post {
-        always {
-            echo 'Slack Notifications.'
-            slackSend channel: '#ci-cd',
-                color: COLOR_MAP[currentBuild.currentResult],
-                message: "*${currentBuild.currentResult}:* Job ${env.JOB_NAME} build ${env.BUILD_NUMBER}"
+        stage('Upload App Image') {
+            steps {
+                script {
+                    docker.withRegistry(VPROFILE_REGISTRY, REGISTRY_CREDENTIAL) {
+                        dockerImage.push("${BUILD_NUMBER}")
+                        dockerImage.push('latest')
+                    }
+                }
+            }
+        }
+
+        stage('Remove Images') {
+            steps {
+                sh 'docker rmi -f $(docker images -a -q)'
+            }
         }
     }
 }
